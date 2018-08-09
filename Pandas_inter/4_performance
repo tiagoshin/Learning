@@ -1,0 +1,91 @@
+%matplotlib inline
+
+import os
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import glob
+
+os.chdir('/home/tiago/Documents/Pandas_inter')
+print(os.getcwd())
+
+sns.set_style('ticks')
+sns.set_context('talk')
+pd.options.display.max_rows = 10
+
+files = glob.glob('weather/*.csv')
+weather_dfs = [pd.read_csv(fp) for fp in files]
+weather = pd.concat(weather_dfs)
+weather
+
+df = pd.read_csv("1008373959_T_ONTIME.csv")
+delays = df['DEP_DELAY']
+
+delays.nlargest(5).sort_values()
+delays.nsmallest(5).sort_values()
+
+%timeit delays.sort_values().tail(5)
+%timeit delays.nlargest(5).sort_values()
+
+coord = (pd.read_csv("362080359_T_MASTER_CORD.csv", index_col=['AIRPORT'], usecols=['AIRPORT', 'LATITUDE', 'LONGITUDE'])
+        .groupby(level=0).first()
+        .dropna()
+        .sample(n=500,random_state=42)
+        .sort_index())
+
+coord.head()
+
+# reindex #MUITO LOCO
+
+idx = pd.MultiIndex.from_product([coord.index, coord.index],
+                                names=['origin', 'dest'])
+pairs = pd.concat([coord.add_suffix('_1').reindex(idx, level='origin'),
+                   coord.add_suffix('_2').reindex(idx, level='dest')], axis=1)
+pairs.head(10000)
+idx = idx[idx.get_level_values(0) <= idx.get_level_values(1)]
+len(idx)
+
+import math
+
+def gcd_py(lat1, lng1, lat2, lng2):
+    '''
+    Calculate great circle distance between two points.
+    http://www.johndcook.com/blog/python_longitude_latitude/
+
+    Parameters
+    ----------
+    lat1, lng1, lat2, lng2: float
+
+    Returns
+    -------
+    distance:
+      distance from ``(lat1, lng1)`` to ``(lat2, lng2)`` in kilometers.
+    '''
+    # python2 users will have to use ascii identifiers (or upgrade)
+    degrees_to_radians = math.pi / 180.0
+    q1 = (90 - lat1) * degrees_to_radians
+    q2 = (90 - lat2) * degrees_to_radians
+
+    w1 = lng1 * degrees_to_radians
+    w2 = lng2 * degrees_to_radians
+
+    cos = (math.sin(q1) * math.sin(q2) * math.cos(w1 - w2) +
+           math.cos(q1) * math.cos(q2))
+    # round to avoid precision issues on identical points causing ValueErrors
+    cos = round(cos, 8)
+    arc = math.acos(cos)
+    return arc * 6373  # radius of earth, in kilometers
+
+%%time
+pd.Series([gcd_py(*x) for x in pairs.itertuples(index=False)],
+          index=pairs.index)
+#categoricals
+
+import string
+
+s = pd.Series(np.random.choice(list(string.ascii_letters), 100000))
+print('{:0.2f} KB'.format(s.memory_usage(index=False) / 1000))
+
+c = s.astype('category')
+print('{:0.2f} KB'.format(c.memory_usage(index=False) / 1000))

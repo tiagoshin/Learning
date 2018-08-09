@@ -1,0 +1,89 @@
+import os
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+sns.set(style='ticks', context='talk')
+import pandas as pd
+#%matplotlib inline
+
+os.chdir('/home/tiago/Documents/Pandas_inter')
+print(os.getcwd())
+
+def read(fp):
+    df = (pd.read_csv(fp)
+            .rename(columns=str.lower)
+            .pipe(time_to_datetime, ['dep_time', 'arr_time', 'crs_arr_time', 'crs_dep_time'])
+            .assign(fl_date=lambda x: pd.to_datetime(x['fl_date']),
+                    dest=lambda x: pd.Categorical(x['dest']),
+                    origin=lambda x: pd.Categorical(x['origin']),
+                    tail_num=lambda x: pd.Categorical(x['tail_num']),
+                    unique_carrier=lambda x: pd.Categorical(x['unique_carrier']),
+                    cancellation_code=lambda x: pd.Categorical(x['cancellation_code'])))
+    return df
+
+
+def time_to_datetime(df, columns):
+    '''
+    Combine all time items into datetimes.
+
+    2014-01-01,0914 -> 2014-01-01 09:14:00
+    '''
+    df = df.copy()
+    def converter(col):
+        timepart = (col.astype(str)
+                       .str.replace('\.0$', '')  # NaNs force float dtype
+                       .str.pad(4, fillchar='0'))
+        return pd.to_datetime(df['fl_date'] + ' ' +
+                               timepart.str.slice(0, 2) + ':' +
+                               timepart.str.slice(2, 4),
+                               errors='coerce')
+    df[columns] = df[columns].apply(converter)
+    return df
+
+output = 'flights.h5'
+
+
+df = read("1008373959_T_ONTIME.csv")
+df.to_hdf(output, 'flights', format='table')
+df.info()
+
+
+(df.dropna(subset=['dep_time', 'unique_carrier'])
+   .loc[df['unique_carrier']
+       .isin(df['unique_carrier'].value_counts().index[:5])]
+   .set_index('dep_time')
+   # TimeGrouper to resample & groupby at once
+   .groupby(['unique_carrier', pd.TimeGrouper("H")])
+   .fl_num.count()
+   .unstack(0)
+   .fillna(0)
+   .rolling(50)
+   .sum()
+   .rename_axis("Flights per Day", axis=1)
+   .plot()
+)
+sns.despine()
+
+import statsmodels.api as sm
+from pandas.core import datetools
+
+%config InlineBackend.figure_format = 'png'
+flights = (df[['fl_date','tail_num','dep_time','dep_delay']]
+            .dropna()
+            .sort_values('dep_time')
+            .loc[lambda x: x.dep_delay < 500]
+            .assign(turn = lambda x:
+                x.groupby(['fl_date','tail_num']).dep_time
+                .transform('rank').astype(int)))
+fig, ax = plt.subplots(figsize=(15,5))
+sns.boxplot(x='turn', y='dep_delay', data=flights, ax=ax)
+ax.set_ylim(-50,50)
+sns.despine()
+
+plt.figure(figsize=(15, 5))
+(df[['fl_date', 'tail_num', 'dep_time', 'dep_delay']]
+    .dropna()
+    .assign(hour=lambda x: x.dep_time.dt.hour)
+    .query('5 < dep_delay < 600')
+    .pipe((sns.boxplot, 'data'), 'hour', 'dep_delay'))
+sns.despine()

@@ -1,0 +1,88 @@
+import os
+import zipfile
+
+import requests
+import numpy as np
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+#Check directory
+os.chdir('/home/tiago/Documents/Pandas_inter')
+print(os.getcwd())
+
+#Read and explore
+
+df = pd.read_csv('1008373959_T_ONTIME.csv', parse_dates=['FL_DATE']).rename(columns=str.lower)
+df.info()
+df.head()
+
+#group by destiny and origin
+df_dest = df.groupby('dest').first()
+df_dest.head()
+dest_locs = df_dest.index
+dest_locs
+
+df_origin = df.groupby('origin').first()
+origin_locs = df_origin.cat.categories
+
+#check memory usage and optimize it
+df.info(memory_usage='deep')
+df.memory_usage(deep='True')
+sorted(df.origin.unique())
+
+df['origin'] = df.origin.astype('category')
+df.origin.cat.codes.head(10)
+
+df['dest'] = df.dest.astype('category')
+df.dest.cat.categories
+
+#Define logical order in categories
+
+dfx = pd.DataFrame({'ID':[100,101,102,103], 'quality':['good','verygood','low','excellent']})
+dfx
+
+dfx.sort_values('quality')
+
+dfx['quality'] = dfx.quality.astype('category', categories=['low','good','verygood','excellent'], ordered=True)
+dfx.quality
+dfx.sort_values('quality')
+dfx.loc[dfx.quality > 'good', :]
+
+#Index for aritimetics
+df2 = df.set_index(['fl_date','unique_carrier'])
+dest_airport_id = df2['dest_airport_id']
+c = (dest_airport_id - 1)*10
+c.to_frame()
+df2.index is c.index
+
+#Index for alignment
+df['fl_date'] = pd.to_datetime(df.fl_date)
+df.fl_date.dt.weekday_name
+df.fl_date.dt.dayofyear
+df.fl_date.max()
+df3 = df.set_index(['fl_date'])
+df3
+
+x = df3.resample('H').mean()
+x
+fl_num_x = x['fl_num'].sample(frac=.5, random_state=1).sort_index()
+fl_num_x.to_frame()
+arr_time_x = x['arr_time'].sample(frac=.5, random_state=1).sort_index()
+arr_time_x.to_frame()
+
+#Merging
+pd.concat([fl_num_x, arr_time_x], axis=1, join='inner').head()
+pd.merge(fl_num_x.to_frame(), arr_time_x.to_frame(), left_index=True, right_index=True).head()
+
+idx_cols = ['unique_carrier', 'origin', 'dest', 'tail_num', 'fl_num', 'fl_date']
+data_cols = ['crs_dep_time', 'dep_delay', 'crs_arr_time', 'arr_delay',
+             'taxi_out', 'taxi_in', 'wheels_off', 'wheels_on']
+
+df = df.set_index(idx_cols)[data_cols].sort_index()
+df
+
+def mode(x):
+    return x.value_counts().index[0]
+
+#more on site

@@ -1,0 +1,55 @@
+import os
+import zipfile
+
+import requests
+import numpy as np
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+os.chdir('/home/tiago/Documents/Pandas_inter')
+print(os.getcwd())
+
+%load_ext rpy2.ipython
+
+df = pd.read_csv('1008373959_T_ONTIME.csv', parse_dates=['FL_DATE']).rename(columns=str.lower)
+df.info()
+df.head()
+
+fig, ax = plt.subplots()
+ax.scatter(x='crs_arr_time', y='nas_delay', data=df, c='k', alpha=.15);
+
+
+df.plot.scatter(x='crs_arr_time', y='nas_delay', c='k', alpha=0.15)
+
+sns.countplot(x='crs_arr_time', data=df)
+sns.despine()
+plt.tight_layout()
+
+
+sns.barplot(x='crs_arr_time', y='dest', data=df, alpha=0.25, color='k')
+plt.tight_layout()
+
+import sklearn
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import GridSearchCV
+
+df = sns.load_dataset('titanic')
+clf = RandomForestClassifier()
+param_grid = dict(max_depth=[1, 2, 5, 10, 20, 30, 40],
+                  min_samples_split=[2, 5, 10],
+                  min_samples_leaf=[2, 3, 5])
+est = GridSearchCV(clf, param_grid=param_grid, n_jobs=4)
+
+y = df['survived']
+x = df.drop(['survived','who','alive'], axis=1)
+X = pd.get_dummies(x, drop_first=True)
+X = X.fillna(value=X.median())
+est.fit(X,y);
+
+scores = pd.DataFrame(est.cv_results_)
+scores.head()
+sns.catplot(x='param_max_depth', y='mean_test_score',
+               col='param_min_samples_split',
+               hue='param_min_samples_leaf',
+               data=scores);
