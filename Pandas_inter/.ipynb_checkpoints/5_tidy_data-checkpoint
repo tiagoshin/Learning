@@ -1,0 +1,86 @@
+%matplotlib inline
+
+import os
+import numpy as np
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+os.chdir('/home/tiago/Documents/Pandas_inter')
+print(os.getcwd())
+
+pd.options.display.max_rows = 10
+sns.set(style='ticks', context='talk')
+
+import lxml
+import html5lib
+
+if not os.path.exists(fp):
+    tables = pd.read_html("http://www.basketball-reference.com/leagues/NBA_2016_games.html")
+    games = tables[0]
+    games.to_csv(fp)
+else:
+    games = pd.read_csv(fp)
+games.head()
+column_names = {'Date': 'date', 'Start (ET)': 'start',
+                'Unamed: 2': 'box', 'Visitor/Neutral': 'away_team',
+                'PTS': 'away_points', 'Home/Neutral': 'home_team',
+                'PTS.1': 'home_points', 'Unamed: 7': 'n_ot'}
+games = (games.rename(columns=column_names)
+    .dropna(thresh=4)
+    [['date','away_team','away_points','home_team','home_points']]
+    .assign(date=lambda x:pd.to_datetime(x['date'], format='%a, %b %d, %Y'))
+    .set_index('date', append=True)
+    .rename_axis(["game_id","date"])
+    .sort_index())
+games.head()
+
+tidy = pd.melt(games.reset_index(),id_vars=['game_id', 'date'], value_vars=['away_team','home_team'], value_name='team')
+tidy.groupby('team')['date'].diff().dt.days -1
+tidy['rest'] = tidy.sort_values('date').groupby('team').date.diff().dt.days - 1
+tidy = tidy.dropna()
+sns.set(style='ticks', context='paper')
+g = sns.FacetGrid(tidy, col='team', col_wrap=6, hue='team', height=2)
+g = g.map(sns.barplot, 'variable', 'rest', order='rest');
+
+by_game = (pd.pivot_table(tidy, values='rest',
+                          index=['game_id', 'date'],
+                          columns='variable')
+             .rename(columns={'away_team': 'away_rest',
+                              'home_team': 'home_rest'}))
+df = pd.concat([games, by_game], axis=1)
+df.dropna().head()
+
+df['home_win'] = df['home_points'] > df['away_points']
+df['rest_spread'] = df['home_rest'] - df['away_rest']
+df.dropna().head()
+df['home_win'] = df['home_points'] > df['away_points']
+df['rest_spread'] = df['home_rest'] - df['away_rest']
+df.dropna().head()
+delta = (by_game.home_rest - by_game.away_rest).dropna().astype(int)
+
+
+ax = (delta.value_counts().reindex(np.arange(delta.min(), delta.max() + 1), fill_value=0)
+    .sort_index()
+    .plot(kind='bar', color='k', width=.9, rot=0, figsize=(12, 6)))
+sns.despine()
+ax.set(xlabel='Difference in Rest (Home - Away)', ylabel='Games');
+
+fig, ax = plt.subplots(figsize=(12, 6))
+sns.barplot(x='rest_spread', y='home_win', data=df.query('-3 <= rest_spread <= 3'),color='#4c72b0', ax=ax)
+sns.despine()
+
+#Stack and Unstack
+rest = (tidy.groupby(['date', 'variable'])
+            .rest.mean()
+            .dropna())
+rest.head()
+rest.unstack().head()
+with sns.color_palette() as pal:
+    b, g = pal.as_hex()[:2]
+
+ax=(rest.unstack().query('away_team < 7').rolling(7).mean().plot(figsize=(12, 6), linewidth=3, legend=False))
+ax.set(ylabel='Rest (7 day MA)')
+#ax.annotate("Home", (rest.index[-1][0], 1.02), color=g, size=14)
+#ax.annotate("Away", (rest.index[-1][0], 0.82), color=b, size=14)
+sns.despine()

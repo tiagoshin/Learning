@@ -1,0 +1,42 @@
+import os
+import zipfile
+
+import requests
+import numpy as np
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+
+os.chdir('/home/tiago/Documents/Pandas_inter')
+print(os.getcwd())
+
+df = pd.read_csv('1008373959_T_ONTIME.csv', parse_dates=['FL_DATE']).rename(columns=str.lower)
+df.info()
+df.head()
+df['dest'].value_counts()
+
+import warnings
+warnings.simplefilter("ignore", DeprecationWarning)
+
+first = df.groupby('airline_id')[['fl_date','unique_carrier']].first()
+first.head()
+
+firstx = df.groupby('unique_carrier').first()
+firstx.head()
+print(firstx.loc[['AA','AS','DL'],['fl_date','tail_num']])
+firstx.iloc[[0,1,3],[0,1]]
+
+f = pd.DataFrame({'a':[1,2,3,4,5], 'b':[10,20,30,40,50]})
+print(f)
+
+f.loc[f['a'] <= 3,'b'] = f.loc[f['a']<=3,'b']/10
+print(f)
+
+
+hdf = df.set_index(['unique_carrier','origin','dest','tail_num','fl_date']).sort_index()
+hdf[hdf.columns[:10]].head()
+
+hdf.loc[['AA','DL','US'],['dep_time','dep_delay']]
+hdf.loc[(['AA','DL','US'],['ORD','DSM']),['dep_time','dep_delay']]
+hdf.loc[pd.IndexSlice[:,['ORD','DSM']],['dep_time','dep_delay']]

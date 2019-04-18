@@ -1,0 +1,46 @@
+import os
+import zipfile
+
+import requests
+import numpy as np
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+import dask.dataframe as dd
+from dask import compute
+from dask.distributed import Client
+import seaborn as sns
+
+from pathlib import Path
+
+os.chdir('/home/tiago/Documents/learning/Pandas_inter')
+print(os.getcwd())
+
+#Reading and exploring
+df6 = dd.read_csv("Zillow/properties_2016.csv", assume_missing=True)
+df7 = dd.read_csv("Zillow/properties_2017.csv", assume_missing=True)
+train7 = dd.read_csv('Zillow/train_2017.csv')
+train6 = dd.read_csv('Zillow/train_2016_v2.csv')
+
+#Some functions
+most_common = df.bedroomcnt.value_counts().nlargest(10)
+most_common.compute().sort_values(ascending=False)
+
+most_common.visualize(rankdir='LR')
+
+client = Client(processes=False)
+client
+
+avg_tax = df.groupby("bedroomcnt").taxamount.agg(['count', 'mean', 'sum', 'max'])
+
+%%time
+avg_tax.compute()
+
+test = compute(avg_tax['mean'])
+test
+
+#Joining
+df = dd.merge(df6, df7, on='parcelid').merge(train6, on='parcelid').merge(train7, on='parcelid')
+
+df.head()
